@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     @Autowired
-    private OrderService service;
+    private OrderService orderService;
     
     @PostMapping("/bookOrder")
     public TransactionResponse bookOrder(@RequestBody TransactionRequest request) throws JsonProcessingException {
-        return service.saveOrder(request);
+        return orderService.saveOrder(request);
     }
 }

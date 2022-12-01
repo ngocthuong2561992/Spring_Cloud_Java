@@ -12,16 +12,16 @@ import org.springframework.web.bind.annotation.*;
 public class PaymentController {
 
     @Autowired
-    private PaymentService service;
+    private PaymentService paymentService;
 
     @PostMapping("/doPayment")
     public Payment doPayment(@RequestBody Payment payment) throws JsonProcessingException {
-        return service.doPayment(payment);
+        return paymentService.doPayment(payment);
     }
 
     @GetMapping("/{orderId}")
     public Payment findPaymentHistoryByOrderId(@PathVariable int orderId) throws JsonProcessingException{
-              return service.findPaymentHistoryByOrderId(orderId);
+              return paymentService.findPaymentHistoryByOrderId(orderId);
     }
 
 
