@@ -1,5 +1,20 @@
 package com.javatechie.os.api.service;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
+
+import javax.transaction.Transactional;
+
+import org.aspectj.weaver.tools.Trace;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javatechie.os.api.common.InventoryResponse;
@@ -11,24 +26,15 @@ import com.javatechie.os.api.common.TransactionResponse;
 import com.javatechie.os.api.entity.Order;
 import com.javatechie.os.api.entity.OrderLineItems;
 import com.javatechie.os.api.repository.OrderRepository;
-import org.springframework.web.reactive.function.client.WebClient;
+
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.dao.DuplicateKeyException;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 @Service
 @RefreshScope
 @Slf4j
+@Transactional
 public class OrderService {
 
 	@Autowired
@@ -36,7 +42,8 @@ public class OrderService {
 	@Autowired
 	@Lazy
 	private RestTemplate restTemplate;
-	private final WebClient webClient = null;
+	private final WebClient.Builder webClientBuilder = null;
+	private final Traces tracer = null;
 
 //    @Value("${microservice.payment-service.endpoints.endpoint.uri}")
 	private String ENDPOINT_URL = "http://localhost:9191/payment/doPayment";
@@ -103,29 +110,37 @@ public class OrderService {
 		return orderRepository.existsById(id);
 	}
 
-	public void placeOrder(OrderRequest orderRequest) {
-		try {
-			Order order = new Order();
-			order.setOrderNumber(UUID.randomUUID().toString());
-			List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList().stream().map(this::mapToDto)
-					.toList();
+	public String placeOrder(OrderRequest orderRequest) {
+		Order order = new Order();
+		order.setOrderNumber(UUID.randomUUID().toString());
+		List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList().stream().map(this::mapToDto)
+				.toList();
 
-			order.setOrderLineItemsList(orderLineItems);
+		order.setOrderLineItemsList(orderLineItems);
 
-			List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
-			// call inventory service, and place order ì product is in stock
-			InventoryResponse[] inventoryResponseArr = webClient.get()
-					.uri("http://localhost:8082/order/inventory",
+		List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
+		Span inventoryServiceLookup = ((Object) tracer).nextSpan().name("InventoryServiceLookup");
+
+		try (Trace.SpanInScope isLookup = Traces.withSpanInScope(inventoryServiceLookup.start())) {
+
+			// inventoryServiceLookup.tag("call", "inventory-service");
+			// Call Inventory Service, and place order if product is in
+			// stock
+			InventoryResponse[] inventoryResponsArray = webClientBuilder.build().get()
+					.uri("http://inventory-service/api/inventory",
 							uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
 					.retrieve().bodyToMono(InventoryResponse[].class).block();
-			Boolean result = Arrays.stream(inventoryResponseArr).allMatch(InventoryResponse::isInStock);
-			if (result) {
+
+			boolean allProductsInStock = Arrays.stream(inventoryResponsArray).allMatch(InventoryResponse::isInStock);
+
+			if (allProductsInStock) {
 				orderRepository.save(order);
+				return "Order Placed Successfully";
 			} else {
-				throw new IllegalArgumentException("product is not in stock, please try again later");
+				throw new IllegalArgumentException("Product is not in stock, please try again later");
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
+		} finally {
+			inventoryServiceLookup.flush();
 		}
 	}
 

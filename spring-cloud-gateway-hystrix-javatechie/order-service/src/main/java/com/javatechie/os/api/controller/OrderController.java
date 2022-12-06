@@ -9,6 +9,10 @@ import com.javatechie.os.api.service.OrderService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 
 
 @RestController
@@ -31,21 +37,22 @@ public class OrderController {
 		return orderService.saveOrder(request);
 	}
 
-	@GetMapping("/find-all")
+	@GetMapping("/findAll")
 	private ResponseEntity<?> findAll() {
 		return new ResponseEntity<>(orderService.findAll(), HttpStatus.OK);
 	}
 
-	@PostMapping("/place-order")
-	@ResponseStatus(HttpStatus.CREATED)
+	@PostMapping("/placeOrder")
+    @ResponseStatus(HttpStatus.CREATED)
     @CircuitBreaker(name = "inventory", fallbackMethod = "fallbackMethod")
-	private String placeOrder(@RequestBody OrderRequest orderRequest) {
-		orderService.placeOrder(orderRequest);
-		return "Order placed Successfully";
-	}
-	
-    public String fallbackMethod(OrderRequest orderRequest, RuntimeException runtimeException) {
-        return "Oops! Something went wrong, please order after some time!";
+    @TimeLimiter(name = "inventory")
+    @Retry(name = "inventory")
+	public CompletableFuture<String> placeOrder(@RequestBody OrderRequest orderRequest) {
+        return CompletableFuture.supplyAsync(() -> orderService.placeOrder(orderRequest));
+    }
+
+    public CompletableFuture<String> fallbackMethod(OrderRequest orderRequest, RuntimeException runtimeException) {
+        return CompletableFuture.supplyAsync(() -> "Oops! Something went wrong, please order after some time!");
     }
 
 	@PostMapping("/createdOrUpdated")
