@@ -42,7 +42,7 @@ public class OrderService {
 	@Autowired
 	private OrderRepository orderRepository;
 	@Autowired
-//	@Lazy
+	@Lazy
 	private RestTemplate restTemplate;
     private final WebClient.Builder webClientBuilder = null;
     private final Tracer tracer = null;
