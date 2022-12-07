@@ -6,14 +6,13 @@ import java.util.UUID;
 
 import javax.transaction.Transactional;
 
-import org.aspectj.weaver.tools.Trace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,11 +24,14 @@ import com.javatechie.os.api.common.TransactionRequest;
 import com.javatechie.os.api.common.TransactionResponse;
 import com.javatechie.os.api.entity.Order;
 import com.javatechie.os.api.entity.OrderLineItems;
+import com.javatechie.os.api.event.OrderPlacedEvent;
 import com.javatechie.os.api.repository.OrderRepository;
-
+import org.springframework.web.reactive.function.client.WebClient;
 import lombok.extern.slf4j.Slf4j;
 
 
+import brave.Span;
+import brave.Tracer;
 
 @Service
 @RefreshScope
@@ -40,11 +42,12 @@ public class OrderService {
 	@Autowired
 	private OrderRepository orderRepository;
 	@Autowired
-	@Lazy
+//	@Lazy
 	private RestTemplate restTemplate;
-	private final WebClient.Builder webClientBuilder = null;
-	private final Traces tracer = null;
-
+    private final WebClient.Builder webClientBuilder = null;
+    private final Tracer tracer = null;
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate = null ;
+    
 //    @Value("${microservice.payment-service.endpoints.endpoint.uri}")
 	private String ENDPOINT_URL = "http://localhost:9191/payment/doPayment";
 
@@ -119,15 +122,15 @@ public class OrderService {
 		order.setOrderLineItemsList(orderLineItems);
 
 		List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
-		Span inventoryServiceLookup = ((Object) tracer).nextSpan().name("InventoryServiceLookup");
+		Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
 
-		try (Trace.SpanInScope isLookup = Traces.withSpanInScope(inventoryServiceLookup.start())) {
+        try (Tracer.SpanInScope isLookup = tracer.withSpanInScope(inventoryServiceLookup.start())) {
 
 			// inventoryServiceLookup.tag("call", "inventory-service");
 			// Call Inventory Service, and place order if product is in
 			// stock
 			InventoryResponse[] inventoryResponsArray = webClientBuilder.build().get()
-					.uri("http://inventory-service/api/inventory",
+					.uri("http://inventory-service/inventory/isInStock",
 							uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
 					.retrieve().bodyToMono(InventoryResponse[].class).block();
 
@@ -135,7 +138,8 @@ public class OrderService {
 
 			if (allProductsInStock) {
 				orderRepository.save(order);
-				return "Order Placed Successfully";
+                kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
+                return "Order Placed Successfully";
 			} else {
 				throw new IllegalArgumentException("Product is not in stock, please try again later");
 			}

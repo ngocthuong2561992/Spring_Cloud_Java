@@ -6,7 +6,9 @@
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>2.7.6</version>
 		<relativePath /> <!-- lookup parent from repository -->
+
 	</parent>
+
 	<groupId>com.javatechie</groupId>
 	<artifactId>order-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
@@ -81,17 +83,31 @@
 			<version>1.6.13</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/io.zipkin.brave/brave -->
+		<!-- https://mvnrepository.com/artifact/io.zipkin.brave/brave-instrumentation-okhttp3 -->
 		<dependency>
 			<groupId>io.zipkin.brave</groupId>
-			<artifactId>brave</artifactId>
-			<version>3.8.0</version>
-			<type>pom</type>
+			<artifactId>brave-instrumentation-okhttp3</artifactId>
+			<version>5.14.1</version>
 		</dependency>
 
-
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
+
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
@@ -99,29 +115,24 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-			<!-- https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-sleuth-zipkin -->
+
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-starter-sleuth</artifactId>
+				<version>2.0.0.M7</version>
+			</dependency>
+			<!-- Sends trace data to zipkin over http (defaults to http://localhost:9411/api/v2/spans) -->
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-sleuth-zipkin</artifactId>
-				<version>3.1.5</version>
 			</dependency>
-
-
-			<!-- https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-sleuth -->
 			<dependency>
-				<groupId>org.springframework.cloud</groupId>
-				<artifactId>spring-cloud-sleuth</artifactId>
-				<version>1.0.0.RELEASE</version>
-				<type>pom</type>
-			</dependency>
-			<!-- https://mvnrepository.com/artifact/io.zipkin.brave/brave -->
-			<dependency>
-				<groupId>io.zipkin.brave</groupId>
-				<artifactId>brave</artifactId>
-				<version>5.14.1</version>
+				<groupId>io.micrometer</groupId>
+				<artifactId>micrometer-tracing-bridge-brave</artifactId>
 			</dependency>
 
 		</dependencies>
+
 
 	</dependencyManagement>
 
